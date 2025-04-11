@@ -1,19 +1,21 @@
 ﻿using CargoWiseXUEJsonFormatter.Models;
 using Newtonsoft.Json;
-using System.Runtime;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 namespace CargoWiseXUEJsonFormatter
 {
-    public class XUEJsonFormatter
-    {
+	/// <summary>
+	/// Class to convert XUE Json format into actual objects
+	/// </summary>
+	public class XUEJsonFormatter
+	{
 		// Regex for finding all occurenced that has a "primary key" value in it
-		private Regex _pkRegex;
+		private readonly Regex _pkRegex;
 		// Regex for finding list items
-		private Regex _rangeRegex;
-		private string _primaryKey;
-		private XElement _source;
+		private readonly Regex _rangeRegex;
+		private readonly string _primaryKey;
+		private readonly XElement _source;
 		private List<ContextNode>? _contextNodes;
 
 		private readonly JsonSerializerSettings _settings = new JsonSerializerSettings
@@ -22,23 +24,48 @@ namespace CargoWiseXUEJsonFormatter
 			MissingMemberHandling = MissingMemberHandling.Error
 		};
 
+		/// <summary>
+		/// Instanciate with a "primary" key used to identify entries, as well as what XElement to find the context nodes in.
+		/// </summary>
+		/// <param name="primaryKey"></param>
+		/// <param name="source"></param>
 		public XUEJsonFormatter(string primaryKey, XElement source)
 		{
 			_primaryKey = primaryKey;
+			_source = source;
 			_pkRegex = new Regex(primaryKey + "\":(.*?),", RegexOptions.Compiled);
 			_rangeRegex = new Regex("{(.*?)}", RegexOptions.Compiled);
 		}
 
-		public List<T> GetNodesOfType<T>(string collectionName)
+		/// <summary>
+		/// Deserialize context nodes with a specific collection name into a list of actual objects.
+		/// If an object is split across two context nodes, they are merged into the list as a single object.
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="collectionName"></param>
+		/// <returns></returns>
+		public List<T> Deserialize<T>(string collectionName)
 		{
 			if (_contextNodes == null)
 				_contextNodes = GetContextNodesFromXUE(_source);
 			var returnList = new List<T>();
 			var collections = _contextNodes.Where(x => x.Name == collectionName).ToList();
-			foreach(var node in collections)
+			foreach (var node in collections)
 				if (JsonConvert.DeserializeObject<T>(node.Value, _settings) is T item)
 					returnList.Add(item);
 			return returnList;
+		}
+
+		/// <summary>
+		/// Get a set of context nodes corresponding to a given type name
+		/// </summary>
+		/// <param name="collectionName"></param>
+		/// <returns></returns>
+		public List<ContextNode> GetContextNodesOfType(string collectionName)
+		{
+			if (_contextNodes == null)
+				_contextNodes = GetContextNodesFromXUE(_source);
+			return _contextNodes.Where(x => x.Name == collectionName).ToList();
 		}
 
 		private List<ContextNode> GetContextNodesFromXUE(XElement doc)
